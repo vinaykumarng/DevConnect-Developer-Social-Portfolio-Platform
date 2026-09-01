@@ -4,13 +4,20 @@ level: <beginner | intermediate>
 started: 2026-08-30
 shipped: <YYYY-MM-DD>
 repo: [<github url>](https://github.com/vinaykumarng/DevConnect---Developer-Social-Portfolio-Platform)
-live: 
+live:
+
 ---
+
 # 1. What this project is
+
 This Project connects Developers and let this show case their projects. Allows developers to build a portfolio which can be showcased in the comunity.
+
 # 2. Problem it solves
+
 in github users can choose the way they can showcase their project, in DevConnect the developers can be creative in showcasing their project and build their portfolio and connect with other developers.
+
 # 3. Architecture
+
 <Paste an ASCII or image diagram. Every box must be something you can explain.>
 Components:
 - <component> -> <responsibility> -> <why this technology and not the alternative>
