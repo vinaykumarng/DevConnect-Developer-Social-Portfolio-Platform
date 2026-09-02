@@ -1,7 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
-import Footer from './components/layout/Footer';
 import Breadcrumb from './components/layout/Breadcrumb';
+import Footer from './components/layout/Footer';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import Signup from './pages/Signup';
+import GuestRoute from './components/GuestRoute';
 
 function App() {
   return (
@@ -14,7 +18,30 @@ function App() {
             path="/"
             element={<div className="text-white p-8">Home</div>}
           />
-          {/* Explore, About, Login, Signup, Profile routes come as pages are built */}
+          <Route
+            path="/signup"
+            element={
+              <GuestRoute>
+                <Signup />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <GuestRoute>
+                <Login />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <div className="text-white p-8">Profile page (protected)</div>
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </main>
       <Footer />

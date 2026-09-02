@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const isLoggedIn = false; // TODO: replace with real auth state tomorrow
+  const { isLoggedIn, user, logout } = useAuth();
 
   const navLinks = [
     { name: 'Home', href: '/' },
@@ -60,12 +61,20 @@ function Navbar() {
           {/* Desktop auth buttons */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
             {isLoggedIn ? (
-              <Link
-                to="/profile"
-                className="text-sm font-medium bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-md transition-colors"
-              >
-                Profile
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/profile"
+                  className="text-sm font-medium text-gray-300 hover:text-white"
+                >
+                  {user?.username}
+                </Link>
+                <button
+                  onClick={logout}
+                  className="text-sm font-medium bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-md transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             ) : (
               <>
                 <Link

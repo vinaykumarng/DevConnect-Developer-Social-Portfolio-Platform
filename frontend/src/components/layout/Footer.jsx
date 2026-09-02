@@ -21,7 +21,7 @@ function Footer() {
               Privacy
             </Link>
             <a
-              href="https://github.com/your-username/DevConnect"
+              href="https://github.com/vinaykumarng/DevConnect-Developer-Social-Portfolio-Platform"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white transition-colors"
