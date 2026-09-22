@@ -44,6 +44,11 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const res = await api.get('/auth/me');
+    setUser(res.data.user);
+  };
+
   const value = {
     user,
     isLoggedIn: !!user,
@@ -51,6 +56,7 @@ export function AuthProvider({ children }) {
     login,
     signup,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

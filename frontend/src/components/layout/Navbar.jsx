@@ -62,10 +62,7 @@ function Navbar() {
           <div className="hidden md:flex items-center gap-3 shrink-0">
             {isLoggedIn ? (
               <div className="flex items-center gap-3">
-                <Link
-                  to="/profile"
-                  className="text-sm font-medium text-gray-300 hover:text-white"
-                >
+                <Link to={`/profile/${user?.username}`} className="text-sm font-medium text-gray-300 hover:text-white">
                   {user?.username}
                 </Link>
                 <button

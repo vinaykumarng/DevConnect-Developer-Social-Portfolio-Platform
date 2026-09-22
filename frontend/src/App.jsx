@@ -6,6 +6,8 @@ import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import Signup from './pages/Signup';
 import GuestRoute from './components/GuestRoute';
+import Profile from './pages/Profile';
+import EditProfile from './pages/EditProfile';
 
 function App() {
   return (
@@ -42,6 +44,15 @@ function App() {
               </ProtectedRoute>
             }
           />
+            <Route path="/profile/:username" element={<Profile />} />
+            <Route
+                path="/profile/edit"
+                element={
+                    <ProtectedRoute>
+                        <EditProfile />
+                    </ProtectedRoute>
+                }
+            />
         </Routes>
       </main>
       <Footer />
