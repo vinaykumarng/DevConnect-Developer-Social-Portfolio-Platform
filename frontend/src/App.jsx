@@ -8,6 +8,7 @@ import Signup from './pages/Signup';
 import GuestRoute from './components/GuestRoute';
 import Profile from './pages/Profile';
 import EditProfile from './pages/EditProfile';
+import Home from './pages/Home';
 
 function App() {
   return (
@@ -16,10 +17,7 @@ function App() {
       <Breadcrumb />
       <main className="flex-1">
         <Routes>
-          <Route
-            path="/"
-            element={<div className="text-white p-8">Home</div>}
-          />
+            <Route path="/" element={<Home />} />
           <Route
             path="/signup"
             element={

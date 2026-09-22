@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
-import {useParams, Link, href} from 'react-router-dom';
+import {useParams, Link} from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserProfile } from '../services/userService';
+import { fetchUserPosts, deletePost as deletePostApi } from '../services/postService';
+import PostCard from '../components/PostCard';
+import { fetchGithubRepos } from '../services/githubService';
+import RepoCard from '../components/RepoCard';
+import FollowButton from '../components/FollowButton';
+import { getFollowStatus } from '../services/followService.js';
 
 function Avatar({ user }) {
     if (user.avatarUrl) {
@@ -25,9 +31,50 @@ export default function Profile() {
     const { username } = useParams();
     const { user: currentUser } = useAuth();
 
+    const [userPosts, setUserPosts] = useState([]);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+
+    const [repos, setRepos] = useState([]);
+    const [reposLoading, setReposLoading] = useState(false);
+    const [reposError, setReposError] = useState('');
+
+    const [counts, setCounts] = useState({ followersCount: 0, followingCount: 0 });
+
+    useEffect(() => {
+        if (!profile) return;
+        getFollowStatus(profile.username).then((res) =>
+            setCounts({ followersCount: res.data.followersCount, followingCount: res.data.followingCount })
+        );
+    }, [profile]);
+
+    const handleCountChange = (delta) => {
+        setCounts((prev) => ({ ...prev, followersCount: prev.followersCount + delta }));
+    };
+
+    useEffect(() => {
+        if (!profile?.githubUsername) return;
+
+        setReposLoading(true);
+        setReposError('');
+
+        fetchGithubRepos(profile.githubUsername)
+            .then((res) => setRepos(res.data.repos))
+            .catch((err) => setReposError(err.response?.data?.message || 'Could not load repos'))
+            .finally(() => setReposLoading(false));
+    }, [profile?.githubUsername]);
+
+    useEffect(() => {
+        if (!profile) return;
+        fetchUserPosts(profile.username).then((res) => setUserPosts(res.data.posts));
+    }, [profile]);
+
+    const handleDeletePost = async (postId) => {
+        if (!confirm('Delete this post?')) return;
+        await deletePostApi(postId);
+        setUserPosts((prev) => prev.filter((p) => p._id !== postId));
+    };
 
     useEffect(() => {
         setLoading(true);
@@ -68,15 +115,18 @@ export default function Profile() {
                                 })}
                                 </p>
                             </div>
-
-                            {isOwnProfile && (
-                                <Link
-                                    to="/profile/edit"
-                                    className="text-sm font-medium bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-                                >
+                            {isOwnProfile ? (
+                                <Link to="/profile/edit" className="text-sm font-medium bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors">
                                     Edit Profile
                                 </Link>
+                            ) : (
+                                <FollowButton username={profile.username} onCountChange={handleCountChange} />
                             )}
+
+                            <div className="flex gap-4 text-sm text-gray-400 mt-1">
+                                <span><strong className="text-white">{counts.followersCount}</strong> followers</span>
+                                <span><strong className="text-white">{counts.followingCount}</strong> following</span>
+                            </div>
                         </div>
 
                         <p className="text-gray-300 mt-3">
@@ -99,10 +149,49 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* Posts feed placeholder — wired up once Posts feature is built */}
+            {profile.githubUsername && (
+                <div className="mt-8">
+                    <h2 className="text-lg font-semibold text-white mb-4">Repositories</h2>
+
+                    {reposLoading && <p className="text-gray-500 text-sm">Loading repos...</p>}
+                    {reposError && <p className="text-red-400 text-sm">{reposError}</p>}
+
+                    {!reposLoading && !reposError && repos.length === 0 && (
+                        <p className="text-gray-500 text-sm">No public repositories found.</p>
+                    )}
+
+                    {!reposLoading && repos.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {repos.slice(0, 6).map((repo) => (
+                                <RepoCard key={repo.id} repo={repo} />
+                            ))}
+                        </div>
+                    )}
+
+                    {repos.length > 6 && (
+                        <a
+                        href={`https://github.com/${profile.githubUsername}?tab=repositories`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-sm text-indigo-400 hover:text-indigo-300 mt-4"
+                        >
+                        View all {repos.length} repos on GitHub →
+                        </a>
+                        )}
+                </div>
+            )}
+
             <div className="mt-8">
                 <h2 className="text-lg font-semibold text-white mb-4">Posts</h2>
-                <p className="text-gray-500 text-sm">No posts yet.</p>
+                {userPosts.length > 0 ? (
+                    <div className="space-y-4">
+                        {userPosts.map((post) => (
+                            <PostCard key={post._id} post={post} onDelete={handleDeletePost} />
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-500 text-sm">No posts yet.</p>
+                )}
             </div>
         </div>
     );
