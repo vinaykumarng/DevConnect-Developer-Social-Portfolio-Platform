@@ -1,18 +1,25 @@
 import Post from '../models/post.model.js';
 import User from '../models/user.model.js';
+import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
 
 // Create a post
 export const createPost = async (req, res) => {
     try {
-        const { content, imageUrl } = req.body;
+        const { content } = req.body;
 
         if (!content || !content.trim()) {
             return res.status(400).json({ message: 'Post content is required' });
         }
 
+        let imageUrl = '';
+        if (req.file) {
+            const result = await uploadBufferToCloudinary(req.file.buffer, 'devconnect/posts');
+            imageUrl = result.secure_url;
+        }
+
         const post = await Post.create({
             content: content.trim(),
-            imageUrl: imageUrl || '',
+            imageUrl,
             author: req.user._id,
         });
 
@@ -27,6 +34,9 @@ export const createPost = async (req, res) => {
         res.status(500).json({ message: 'Server error creating post' });
     }
 };
+
+// updatePost stays as-is for text edits; image editing on existing posts
+// is intentionally left out for now — keeps scope contained
 
 // Get paginated feed (all posts, newest first)
 export const getFeed = async (req, res) => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile } from '../services/userService';
+import {uploadAvatar} from "../services/userService";
 
 export default function EditProfile() {
     const { user, refreshUser } = useAuth();
@@ -12,6 +13,8 @@ export default function EditProfile() {
     const [githubUsername, setGithubUsername] = useState(user?.githubUsername || '');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreview, setAvatarPreview] = useState(user?.avatarUrl || '');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -19,7 +22,10 @@ export default function EditProfile() {
         setIsSubmitting(true);
 
         try {
-            await updateProfile({ bio, avatarUrl, githubUsername });
+            if (avatarFile) {
+                await uploadAvatar(avatarFile);
+            }
+            await updateProfile({ bio, githubUsername });
             await refreshUser();
             navigate(`/profile/${user.username}`);
         } catch (err) {
@@ -27,6 +33,12 @@ export default function EditProfile() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+    const handleAvatarChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setAvatarFile(file);
+        setAvatarPreview(URL.createObjectURL(file)); // local preview before upload
     };
 
     return (
@@ -54,17 +66,20 @@ export default function EditProfile() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Avatar URL</label>
-                        <input
-                            type="url"
-                            value={avatarUrl}
-                            onChange={(e) => setAvatarUrl(e.target.value)}
-                            className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="https://..."
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                            File uploads coming later — paste an image URL for now.
-                        </p>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Avatar</label>
+                        <div className="flex items-center gap-4">
+                            {avatarPreview ? (
+                                <img src={avatarPreview} alt="Preview" className="w-16 h-16 rounded-full object-cover border border-gray-700" />
+                            ) : (
+                                <div className="w-16 h-16 rounded-full bg-gray-800 border border-gray-700" />
+                            )}
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                onChange={handleAvatarChange}
+                                className="text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-800 file:text-gray-300 file:text-sm hover:file:bg-gray-700 file:cursor-pointer cursor-pointer"
+                            />
+                        </div>
                     </div>
 
                     <div>

@@ -1,4 +1,5 @@
 import User from '../models/user.model.js';
+import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
 
 export const getUserProfile = async (req, res) => {
     try {
@@ -39,5 +40,23 @@ export const updateUserProfile = async (req, res) => {
         }
         console.error('Update profile error:', err);
         res.status(500).json({ message: 'Server error updating profile' });
+    }
+};
+export const uploadAvatar = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No image file provided' });
+        }
+
+        const result = await uploadBufferToCloudinary(req.file.buffer, 'devconnect/avatars');
+
+        const user = await User.findById(req.user._id);
+        user.avatarUrl = result.secure_url;
+        await user.save();
+
+        res.status(200).json({ message: 'Avatar updated', user });
+    } catch (err) {
+        console.error('Avatar upload error:', err);
+        res.status(500).json({ message: 'Server error uploading avatar' });
     }
 };

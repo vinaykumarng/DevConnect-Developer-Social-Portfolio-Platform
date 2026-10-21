@@ -9,6 +9,7 @@ import postRoutes from "./routes/post.routes.js";
 import followRoutes from "./routes/follow.routes.js";
 import githubRoutes from "./routes/github.routes.js";
 import commentRoutes from "./routes/comment.routes.js";
+import multer from 'multer';
 
 dotenv.config();
 connectDB();
@@ -21,6 +22,15 @@ app.use('/api/posts', postRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/follows', followRoutes);
 app.use('/api/comments', commentRoutes);
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ message: err.message });
+  }
+  if (err) {
+    return res.status(400).json({ message: err.message });
+  }
+  next();
+});
 
 app.use('/', (req, res, next) => {
   res.send('Hello world');

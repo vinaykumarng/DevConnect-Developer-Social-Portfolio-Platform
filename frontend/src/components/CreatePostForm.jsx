@@ -2,9 +2,17 @@ import { useState } from 'react';
 
 export default function CreatePostForm({ onPostCreated }) {
     const [content, setContent] = useState('');
-    const [imageUrl, setImageUrl] = useState('');
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -13,9 +21,14 @@ export default function CreatePostForm({ onPostCreated }) {
         setError('');
         setIsSubmitting(true);
         try {
-            await onPostCreated({ content, imageUrl });
+            const formData = new FormData();
+            formData.append('content', content);
+            if (imageFile) formData.append('image', imageFile);
+
+            await onPostCreated(formData);
             setContent('');
-            setImageUrl('');
+            setImageFile(null);
+            setImagePreview('');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not create post');
         } finally {
@@ -36,12 +49,15 @@ export default function CreatePostForm({ onPostCreated }) {
                 className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
             />
 
+            {imagePreview && (
+                <img src={imagePreview} alt="Preview" className="mt-2 rounded-md max-h-48 object-cover" />
+            )}
+
             <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Image URL (optional — uploads coming later)"
-                className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 mt-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleImageChange}
+                className="text-sm text-gray-400 mt-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-800 file:text-gray-300 file:text-sm hover:file:bg-gray-700 file:cursor-pointer cursor-pointer"
             />
 
             <div className="flex justify-end mt-3">

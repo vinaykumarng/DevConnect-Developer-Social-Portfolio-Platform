@@ -23,8 +23,8 @@ export default function Home() {
         loadFeed(1);
     }, [loadFeed]);
 
-    const handlePostCreated = async (data) => {
-        const res = await createPostApi(data);
+    const handlePostCreated = async (formData) => {
+        const res = await createPostApi(formData);
         setPosts((prev) => [res.data.post, ...prev]);
     };
 
