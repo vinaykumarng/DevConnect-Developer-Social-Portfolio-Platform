@@ -1,76 +1,58 @@
+// backend/controller/auth.Controller.js
+// Login + "who am I" on Prisma/Postgres.
+// There is deliberately no signup here: new accounts will be created through
+// Google login (step 5). Test accounts come from scripts/seed.js.
+
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import User from '../models/user.model.js';
+import prisma from '../database/prisma.js';
 
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
-};
+// Compared against whenever there is no real hash to check (unknown email, or a
+// Google-only account with no password). That keeps every failed login taking
+// about the same time, so response timing can't reveal which emails exist.
+const DUMMY_HASH = await bcrypt.hash('not-a-real-password', 10);
 
-export const signup = async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    const existingEmail = await User.findOne({ email });
-    if (existingEmail) {
-      return res.status(409).json({ message: 'Email already in use' });
-    }
-
-    const existingUsername = await User.findOne({ username });
-    if (existingUsername) {
-      return res.status(409).json({ message: 'Username already taken' });
-    }
-
-    const user = await User.create({ username, email, password });
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      message: 'Account created successfully',
-      token,
-      user, // password stripped automatically via toJSON
+const generateToken = (userId) =>
+    jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN,
     });
-  } catch (err) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: err.message });
-    }
-    console.error('Signup error:', err);
-    res.status(500).json({ message: 'Server error during signup' });
-  }
-};
 
 export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+    try {
+        const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: 'Email and password are required' });
+        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // passwordHash is omitted from every query by default (see database/prisma.js).
+        // This is the one place that opts back in.
+        const user = await prisma.user.findUnique({
+            where: { email: email.trim().toLowerCase() },
+            omit: { passwordHash: false },
+        });
+
+        const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+
+        // Same response for: unknown email, account without a password, wrong password
+        if (!user || !user.passwordHash || !passwordMatches) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        const { passwordHash, ...safeUser } = user;
+
+        res.status(200).json({
+            message: 'Login successful',
+            token: generateToken(user.id),
+            user: safeUser,
+        });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ message: 'Server error during login' });
     }
+};
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const token = generateToken(user._id);
-
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      user,
-    });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login' });
-  }
+// req.user is attached by the protect middleware
+export const getMe = (req, res) => {
+    res.json({ user: req.user });
 };

@@ -1,16 +1,35 @@
-import User from '../models/user.model.js';
+// backend/controller/userController.js
+// Profiles on Prisma/Postgres.
+
+import prisma from '../database/prisma.js';
 import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
+
+// Fields safe to show to anyone. Email stays private.
+const publicProfileSelect = {
+    id: true,
+    username: true,
+    avatarUrl: true,
+    bio: true,
+    githubUsername: true,
+    createdAt: true,
+};
+
+// GitHub's rules: letters, digits and single hyphens, no leading or trailing
+// hyphen, at most 39 characters.
+const GITHUB_USERNAME_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 
 export const getUserProfile = async (req, res) => {
     try {
-        const { username } = req.params;
-        const user = await User.findOne({ username });
+        const user = await prisma.user.findUnique({
+            where: { username: req.params.username },
+            select: publicProfileSelect,
+        });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.status(200).json({ user }); // password already stripped via toJSON
+        res.status(200).json({ user });
     } catch (err) {
         console.error('Get profile error:', err);
         res.status(500).json({ message: 'Server error fetching profile' });
@@ -19,29 +38,39 @@ export const getUserProfile = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
     try {
-        const { bio, avatarUrl, githubUsername } = req.body;
+        const { bio, githubUsername } = req.body;
+        const data = {};
 
-        // Only allow editing your own profile — req.user comes from the protect middleware
-        const user = await User.findById(req.user._id);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+        if (bio !== undefined) {
+            if (typeof bio !== 'string' || bio.trim().length > 200) {
+                return res.status(400).json({ message: 'Bio must be text of at most 200 characters' });
+            }
+            data.bio = bio.trim() || null; // empty string becomes NULL ("not set")
         }
 
-        if (bio !== undefined) user.bio = bio;
-        if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
-        if (githubUsername !== undefined) user.githubUsername = githubUsername;
+        if (githubUsername !== undefined) {
+            if (typeof githubUsername !== 'string') {
+                return res.status(400).json({ message: 'GitHub username must be text' });
+            }
+            const value = githubUsername.trim();
+            if (value && !GITHUB_USERNAME_RE.test(value)) {
+                return res.status(400).json({ message: 'That does not look like a valid GitHub username' });
+            }
+            data.githubUsername = value || null;
+        }
 
-        await user.save();
+        const user = await prisma.user.update({
+            where: { id: req.user.id },
+            data,
+        });
 
         res.status(200).json({ message: 'Profile updated', user });
     } catch (err) {
-        if (err.name === 'ValidationError') {
-            return res.status(400).json({ message: err.message });
-        }
         console.error('Update profile error:', err);
         res.status(500).json({ message: 'Server error updating profile' });
     }
 };
+
 export const uploadAvatar = async (req, res) => {
     try {
         if (!req.file) {
@@ -50,9 +79,10 @@ export const uploadAvatar = async (req, res) => {
 
         const result = await uploadBufferToCloudinary(req.file.buffer, 'devconnect/avatars');
 
-        const user = await User.findById(req.user._id);
-        user.avatarUrl = result.secure_url;
-        await user.save();
+        const user = await prisma.user.update({
+            where: { id: req.user.id },
+            data: { avatarUrl: result.secure_url },
+        });
 
         res.status(200).json({ message: 'Avatar updated', user });
     } catch (err) {

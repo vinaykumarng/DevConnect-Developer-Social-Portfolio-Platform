@@ -3,6 +3,7 @@ CREATE TABLE "users" (
     "id" UUID NOT NULL,
     "username" VARCHAR(30) NOT NULL,
     "email" VARCHAR(255) NOT NULL,
+    "password_hash" VARCHAR(255),
     "avatar_url" TEXT,
     "bio" VARCHAR(200),
     "github_username" VARCHAR(100),
