@@ -10,12 +10,14 @@ import followRoutes from "./routes/follow.routes.js";
 import githubRoutes from "./routes/github.routes.js";
 import commentRoutes from "./routes/comment.routes.js";
 import multer from 'multer';
+import passport from './middleware/passport.middleware.js';
 
 dotenv.config();
 connectDB();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);

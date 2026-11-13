@@ -5,7 +5,7 @@ export default function ProtectedRoute({ children }) {
   const { isLoggedIn, loading } = useAuth();
 
   if (loading) {
-    return <div className="text-center text-gray-400 py-20">Loading...</div>;
+    return <div className="py-20 text-center text-muted">Loading...</div>;
   }
 
   if (!isLoggedIn) {

@@ -19,16 +19,21 @@ const generateToken = (userId) =>
 
 export const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        // `identifier` is an email or a username (`email` still works for older clients)
+        const { identifier, email, password } = req.body;
+        const login_id = identifier ?? email;
 
-        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
+        if (typeof login_id !== 'string' || typeof password !== 'string' || !login_id.trim() || !password) {
+            return res.status(400).json({ message: 'Email or username and password are required' });
         }
+
+        const value = login_id.trim();
+        const where = value.includes('@') ? { email: value.toLowerCase() } : { username: value };
 
         // passwordHash is omitted from every query by default (see database/prisma.js).
         // This is the one place that opts back in.
         const user = await prisma.user.findUnique({
-            where: { email: email.trim().toLowerCase() },
+            where,
             omit: { passwordHash: false },
         });
 

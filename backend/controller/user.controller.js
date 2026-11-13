@@ -90,3 +90,31 @@ export const uploadAvatar = async (req, res) => {
         res.status(500).json({ message: 'Server error uploading avatar' });
     }
 };
+
+// Up to 5 people the current user doesn't follow yet (never themselves), most-followed first.
+// `followsYou` powers the "Follows you" line in the right-hand Suggestions card.
+export const getSuggestions = async (req, res) => {
+    try {
+        const me = req.user?.id;
+
+        const users = await prisma.user.findMany({
+            where: me ? { id: { not: me }, followsReceived: { none: { followerId: me } } } : {},
+            orderBy: [{ followsReceived: { _count: 'desc' } }, { createdAt: 'desc' }],
+            take: 5,
+            select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+                bio: true,
+                followsGiven: me ? { where: { followingId: me }, select: { followerId: true } } : false,
+            },
+        });
+
+        res.status(200).json({
+            users: users.map(({ followsGiven, ...u }) => ({ ...u, followsYou: !!followsGiven?.length })),
+        });
+    } catch (err) {
+        console.error('Get suggestions error:', err);
+        res.status(500).json({ message: 'Server error fetching suggestions' });
+    }
+};

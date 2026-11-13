@@ -1,70 +1,73 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { timeAgo } from '../utils/timeAgo';
+import Avatar from './Avatar';
+import Icon from './Icons';
 import CommentSection from './CommentSection';
-
-function timeAgo(date) {
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    const intervals = [
-        { label: 'y', secs: 31536000 },
-        { label: 'mo', secs: 2592000 },
-        { label: 'd', secs: 86400 },
-        { label: 'h', secs: 3600 },
-        { label: 'm', secs: 60 },
-    ];
-    for (const i of intervals) {
-        const count = Math.floor(seconds / i.secs);
-        if (count >= 1) return `${count}${i.label} ago`;
-    }
-    return 'just now';
-}
 
 export default function PostCard({ post, onDelete }) {
     const { user } = useAuth();
-    const isAuthor = user?._id === post.author?._id;
+    const [showComments, setShowComments] = useState(false);
+    const [commentCount, setCommentCount] = useState(post._count?.comments ?? 0);
+
+    const isAuthor = user?.id === post.author?.id;
+    const profileLink = `/profile/${post.author?.username}`;
 
     return (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-            <div className="flex items-start justify-between">
-                <Link to={`/profile/${post.author?.username}`} className="flex items-center gap-3 group">
-                    {post.author?.avatarUrl ? (
-                        <img
-                            src={post.author.avatarUrl}
-                            alt={post.author.username}
-                            className="w-10 h-10 rounded-full object-cover"
-                        />
-                    ) : (
-                        <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold text-white">
-                            {post.author?.username?.charAt(0).toUpperCase()}
-                        </div>
-                    )}
-                    <div>
-                        <p className="text-sm font-medium text-white group-hover:text-indigo-400 transition-colors">
-                            {post.author?.username}
-                        </p>
-                        <p className="text-xs text-gray-500">{timeAgo(post.createdAt)}</p>
-                    </div>
-                </Link>
+        <article className="flex gap-3 border-b border-line px-4 py-4">
+            <Link to={profileLink} aria-label={`${post.author?.username}'s profile`}>
+                <Avatar user={post.author} />
+            </Link>
 
-                {isAuthor && (
+            <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-[15px]">
+                        <Link to={profileLink} className="font-bold hover:underline">
+                            {post.author?.username}
+                        </Link>
+                        <span className="text-muted"> · {timeAgo(post.createdAt)}</span>
+                    </p>
+
+                    {isAuthor && (
+                        <button
+                            onClick={() => onDelete(post.id)}
+                            aria-label="Delete post"
+                            className="-mr-1.5 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-blush hover:text-danger"
+                        >
+                            <Icon name="trash" className="size-4" />
+                        </button>
+                    )}
+                </div>
+
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{post.content}</p>
+
+                {post.imageUrl && (
+                    <img
+                        src={post.imageUrl}
+                        alt="Post attachment"
+                        className="mt-3 max-h-[28rem] w-full rounded-2xl border border-line object-cover"
+                    />
+                )}
+
+                <div className="mt-2 flex items-center text-muted">
                     <button
-                        onClick={() => onDelete(post._id)}
-                        className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                        onClick={() => setShowComments((v) => !v)}
+                        aria-expanded={showComments}
+                        aria-label="Comments"
+                        className={`-ml-2 flex items-center gap-2 rounded-full px-2 py-1.5 text-sm transition-colors hover:bg-tint/50 hover:text-coral ${
+                            showComments ? 'text-coral' : ''
+                        }`}
                     >
-                        Delete
+                        <Icon name="comment" className="size-[18px]" />
+                        {commentCount}
                     </button>
+                </div>
+
+                {showComments && (
+                    <CommentSection postId={post.id} onCountChange={(d) => setCommentCount((c) => c + d)} />
                 )}
             </div>
-
-            <p className="text-gray-200 text-sm mt-3 whitespace-pre-wrap">{post.content}</p>
-
-            {post.imageUrl && (
-                <img
-                    src={post.imageUrl}
-                    alt="Post attachment"
-                    className="mt-3 rounded-md w-full max-h-96 object-cover border border-gray-800"
-                />
-            )}
-            <CommentSection postId={post._id} />
-        </div>
+        </article>
     );
 }
