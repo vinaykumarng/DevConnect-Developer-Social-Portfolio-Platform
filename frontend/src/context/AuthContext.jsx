@@ -5,35 +5,27 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Only "loading" if there is a token to validate
+  const [loading, setLoading] = useState(() => !!localStorage.getItem('token'));
 
   // On app load, check if a token exists and validate it against /me
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
 
     api
-      .get('/auth/me')
-      .then((res) => setUser(res.data.user))
-      .catch(() => {
-        localStorage.removeItem('token'); // stale/invalid token
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+        .get('/auth/me')
+        .then((res) => setUser(res.data.user))
+        .catch(() => {
+          localStorage.removeItem('token'); // stale/invalid token
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
-    return res.data;
-  };
-
-  const signup = async (username, email, password) => {
-    const res = await api.post('/auth/signup', { username, email, password });
+  // `identifier` is an email or a username. There is no signup: new accounts come from Google login.
+  const login = async (identifier, password) => {
+    const res = await api.post('/auth/login', { identifier, password });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
     return res.data;
@@ -49,15 +41,7 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
   };
 
-  const value = {
-    user,
-    isLoggedIn: !!user,
-    loading,
-    login,
-    signup,
-    logout,
-    refreshUser,
-  };
+  const value = { user, isLoggedIn: !!user, loading, login, logout, refreshUser };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

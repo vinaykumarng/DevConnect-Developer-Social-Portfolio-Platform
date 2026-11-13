@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import AuthLayout, { OrDivider } from '../components/auth/AuthLayout';
+import FloatingInput from '../components/auth/FloatingInput';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+
+// Two steps, as in the Figma: first the email or username, then the password.
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -14,80 +20,87 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setIsSubmitting(true);
 
+    if (step === 1) {
+      if (identifier.trim()) setStep(2);
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      await login(email, password);
+      await login(identifier.trim(), password);
       navigate('/');
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Something went wrong. Please try again.',
-      );
+      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleGoogleLogin = () => {
+    window.location.href = `${API_BASE}/api/auth/google`;
+  };
+
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-lg p-8">
-        <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
-        <p className="text-sm text-gray-400 mb-6">
-          Log in to your DevConnect account
-        </p>
+      <AuthLayout
+          title="LogIn."
+          onGoogle={handleGoogleLogin}
+          footer={
+            <p>
+              Don&apos;t have an account?{' '}
+              <Link to="/signup" className="text-link hover:underline">
+                Sign up
+              </Link>
+            </p>
+          }
+      >
+        <OrDivider />
 
-        {error && (
-          <div className="mb-4 text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-md px-3 py-2">
-            {error}
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {error && (
+              <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+                {error}
+              </p>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="••••••••"
-            />
-          </div>
+          {step === 1 ? (
+              <FloatingInput
+                  id="identifier"
+                  label="Email or username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+              />
+          ) : (
+              <>
+                <p className="flex items-center justify-between rounded-md border-2 border-line px-3 py-2 text-sm">
+                  <span className="truncate">{identifier}</span>
+                  <button type="button" onClick={() => setStep(1)} className="ml-2 shrink-0 text-xs text-link hover:underline">
+                    Change
+                  </button>
+                </p>
+                <FloatingInput
+                    id="password"
+                    label="Password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+              </>
+          )}
 
           <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium py-2 rounded-md transition-colors"
+              type="submit"
+              disabled={isSubmitting}
+              className="mt-2 h-10 w-full rounded-full bg-plum text-sm font-bold text-white transition-colors hover:bg-plum-soft disabled:opacity-60"
           >
-            {isSubmitting ? 'Logging in...' : 'Log In'}
+            {isSubmitting ? 'Logging in...' : 'Continue'}
           </button>
         </form>
-
-        <p className="text-sm text-gray-400 mt-6 text-center">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-indigo-400 hover:text-indigo-300">
-            Sign up
-          </Link>
-        </p>
-      </div>
-    </div>
+      </AuthLayout>
   );
 }

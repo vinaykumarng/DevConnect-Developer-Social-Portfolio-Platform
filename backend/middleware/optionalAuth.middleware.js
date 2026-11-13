@@ -1,18 +1,21 @@
-import jwt from 'jsonwebtoken';
-import User from '../models/user.model.js';
+// backend/middleware/optionalAuth.js
+// Like protect, but never rejects the request: logged-out visitors (or visitors
+// with a bad/expired token) just get no req.user.
 
-// Like `protect`, but doesn't reject the request if there's no token —
-// just leaves req.user undefined for logged-out visitors.
+import jwt from 'jsonwebtoken';
+import prisma from '../database/prisma.js';
+
 export const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
+
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            req.user = await User.findById(decoded.id);
+            req.user = await prisma.user.findUnique({ where: { id: decoded.id } });
         }
     } catch {
-        // invalid/expired token on an optional route — just proceed as logged-out
+        // invalid or expired token on an optional route: carry on as logged out
     }
     next();
 };

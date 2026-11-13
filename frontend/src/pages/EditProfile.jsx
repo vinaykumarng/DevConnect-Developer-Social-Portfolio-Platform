@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile } from '../services/userService';
-import {uploadAvatar} from "../services/userService";
+import { updateProfile, uploadAvatar } from '../services/userService';
+import Avatar from '../components/Avatar';
+
+const inputClass =
+    'w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm placeholder:text-muted/70 focus:border-link focus:outline-none';
 
 export default function EditProfile() {
     const { user, refreshUser } = useAuth();
     const navigate = useNavigate();
 
     const [bio, setBio] = useState(user?.bio || '');
-    const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
     const [githubUsername, setGithubUsername] = useState(user?.githubUsername || '');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,9 +24,7 @@ export default function EditProfile() {
         setIsSubmitting(true);
 
         try {
-            if (avatarFile) {
-                await uploadAvatar(avatarFile);
-            }
+            if (avatarFile) await uploadAvatar(avatarFile);
             await updateProfile({ bio, githubUsername });
             await refreshUser();
             navigate(`/profile/${user.username}`);
@@ -34,6 +34,7 @@ export default function EditProfile() {
             setIsSubmitting(false);
         }
     };
+
     const handleAvatarChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -42,66 +43,75 @@ export default function EditProfile() {
     };
 
     return (
-        <div className="max-w-lg mx-auto px-4 py-10">
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-8">
-                <h1 className="text-xl font-bold text-white mb-6">Edit Profile</h1>
+        <div className="px-4 py-6 sm:px-6">
+            <h1 className="mb-6 text-xl font-bold">Edit profile</h1>
 
-                {error && (
-                    <div className="mb-4 text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-md px-3 py-2">
-                        {error}
-                    </div>
-                )}
+            {error && (
+                <p role="alert" className="mb-4 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {error}
+                </p>
+            )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
-                        <textarea
-                            rows={3}
-                            value={bio}
-                            onChange={(e) => setBio(e.target.value)}
-                            maxLength={200}
-                            className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                            placeholder="Tell people about yourself..."
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Avatar</label>
-                        <div className="flex items-center gap-4">
-                            {avatarPreview ? (
-                                <img src={avatarPreview} alt="Preview" className="w-16 h-16 rounded-full object-cover border border-gray-700" />
-                            ) : (
-                                <div className="w-16 h-16 rounded-full bg-gray-800 border border-gray-700" />
-                            )}
+            <form onSubmit={handleSubmit} className="max-w-md space-y-5">
+                <div>
+                    <span className="mb-2 block text-sm font-semibold">Avatar</span>
+                    <div className="flex items-center gap-4">
+                        <Avatar user={{ username: user?.username, avatarUrl: avatarPreview }} className="size-16 text-xl" />
+                        <label className="cursor-pointer rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-blush/60">
+                            Change photo
                             <input
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 onChange={handleAvatarChange}
-                                className="text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-800 file:text-gray-300 file:text-sm hover:file:bg-gray-700 file:cursor-pointer cursor-pointer"
+                                className="sr-only"
                             />
-                        </div>
+                        </label>
                     </div>
+                </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">GitHub Username</label>
-                        <input
-                            type="text"
-                            value={githubUsername}
-                            onChange={(e) => setGithubUsername(e.target.value)}
-                            className="w-full bg-gray-800 text-white text-sm rounded-md px-3 py-2 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="octocat"
-                        />
-                    </div>
+                <div>
+                    <label htmlFor="bio" className="mb-1 block text-sm font-semibold">
+                        Bio
+                    </label>
+                    <textarea
+                        id="bio"
+                        rows={3}
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        maxLength={200}
+                        className={`${inputClass} resize-none`}
+                        placeholder="Tell people about yourself..."
+                    />
+                    <p className="mt-1 text-right text-xs text-muted">{bio.length}/200</p>
+                </div>
 
+                <div>
+                    <label htmlFor="github" className="mb-1 block text-sm font-semibold">
+                        GitHub username
+                    </label>
+                    <input
+                        id="github"
+                        type="text"
+                        value={githubUsername}
+                        onChange={(e) => setGithubUsername(e.target.value)}
+                        className={inputClass}
+                        placeholder="octocat"
+                    />
+                </div>
+
+                <div className="flex items-center gap-3">
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-md transition-colors"
+                        className="rounded-full bg-plum px-6 py-2 text-sm font-semibold text-white hover:bg-plum-soft disabled:opacity-60"
                     >
-                        {isSubmitting ? 'Saving...' : 'Save Changes'}
+                        {isSubmitting ? 'Saving...' : 'Save changes'}
                     </button>
-                </form>
-            </div>
+                    <Link to={`/profile/${user?.username}`} className="text-sm text-muted hover:underline">
+                        Cancel
+                    </Link>
+                </div>
+            </form>
         </div>
     );
 }

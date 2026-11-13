@@ -2,32 +2,42 @@
 
 A social platform where developers create a profile, import their GitHub repositories, write posts, follow each other and comment. It is the classic full-stack CRUD application, but built at production quality: real authentication, image uploads, pagination, search and a deployed URL.
 
+> **Project status:** the database is being migrated from MongoDB to PostgreSQL (with Prisma), and sign-in is moving to Google login plus a verified GitHub connection. This work lives on a separate branch. `main` holds the complete, working MongoDB version. On the migration branch, authentication, profiles and the seed script already run on Postgres, while posts, comments and follows are still being ported.
+
 ## Features
 
-### ✅ Built so far
-- **Authentication** — JWT-based signup/login, bcrypt password hashing, protected routes on both frontend and backend
-- **Profiles** — public profile pages (`/profile/:username`), editable bio/avatar/GitHub username, avatar fallback (initial-letter) when no image is set
-- **Posts** — create, read, update, delete, with server-side ownership checks (only the author can edit/delete their own post)
-- **Feed** — paginated home feed, newest posts first, "Load more" pagination
-- **Responsive layout** — Navbar (with mobile menu + search bar UI), Footer, dynamic breadcrumb trail derived from the current route
+### Built (complete on `main`)
+- **Authentication** — JWT-based login, bcrypt password hashing, protected routes on both frontend and backend
+- **Profiles** — public profile pages (`/profile/:username`), editable bio, avatar and GitHub username, with an initial-letter avatar fallback
+- **Image uploads** — avatar and post images via Multer and Cloudinary (type and 5 MB size limits, nothing written to local disk)
+- **Posts** — create, read, delete, with server-side ownership checks (only the author can change their own post)
+- **Feed** — paginated home feed, newest first, "Load more"
+- **Comments** — add and delete comments (author-only delete), loaded lazily per post
+- **Follow system** — follow and unfollow, follower and following counts, self-follow blocked
+- **GitHub repo import** — shows a user's public, non-forked repositories (name, stars, language, forks) on their profile
+- **Responsive layout** — Navbar with mobile menu, Footer, dynamic breadcrumb trail
+- **Seed script** — synthetic users, posts, comments and follows for local development
 
-### 🚧 Planned
-- Comments on posts
-- Follow / unfollow system
-- GitHub repo import (pull and display a user's repos via the GitHub API)
-- Image uploads (avatar + post images — currently URL-only, no file storage yet)
-- Real search (the navbar search bar is currently UI-only)
-- Deployment (frontend + backend + database)
+### In progress
+- **PostgreSQL migration** (Prisma 6): schema, Docker-based local database and the auth, profile and seed code are done; posts, comments and follows are next
+- **Google sign-in** — new users choose a username and can optionally set a password; existing users sign in directly
+- **Connect GitHub** — GitHub OAuth so the GitHub username on a profile is verified, not just typed in
+
+### Planned
+- Real search (the navbar search bar is currently UI only)
+- Following-only feed filter
+- Remote managed Postgres and deployment
 
 ## Tech Stack
 
 | Layer | Tech |
 |---|---|
-| Frontend | React (Vite), Tailwind CSS, react-router-dom |
-| Backend | Node.js, Express |
-| Database | MongoDB + Mongoose |
-| Auth | JWT (`jsonwebtoken`), `bcrypt` for password hashing |
-| HTTP client | axios |
+| Frontend | React (Vite), Tailwind CSS, react-router-dom, axios |
+| Backend | Node.js, Express (ESM) |
+| Database | PostgreSQL + Prisma 6 (MongoDB + Mongoose still used by the unported parts) |
+| Local database | PostgreSQL 16 in Docker |
+| Auth | JWT (`jsonwebtoken`), `bcrypt`; Google OAuth planned |
+| Images | Multer + Cloudinary |
 
 Both frontend and backend are written in JavaScript (not TypeScript).
 
@@ -35,27 +45,25 @@ Both frontend and backend are written in JavaScript (not TypeScript).
 
 ```
 DevConnect/
+├── docker-compose.yml        # local PostgreSQL
 ├── backend/
-│   ├── config/
-│   ├── controller/       # authController, userController, postController
-│   ├── database/         # Mongoose connection
-│   ├── middleware/       # JWT auth middleware
-│   ├── models/           # User, Post
-│   ├── routes/           # authRoutes, userRoutes, postRoutes
-│   ├── .env
+│   ├── config/               # Cloudinary config
+│   ├── controller/           # auth, user, post, comment, follow, github
+│   ├── database/             # prisma.js (shared client), db.js (legacy Mongo)
+│   ├── middleware/           # protect, optionalAuth, upload (multer)
+│   ├── models/               # legacy Mongoose models, removed once ported
+│   ├── prisma/               # schema.prisma + migrations
+│   ├── routes/
+│   ├── scripts/              # seed.js, dbcheck.js
+│   ├── utils/                # uploadToCloudinary.js
 │   └── app.js
 │
 └── frontend/
     └── src/
-        ├── components/
-        │   ├── layout/    # Navbar, Footer, Breadcrumb
-        │   ├── ProtectedRoute.jsx
-        │   ├── GuestRoute.jsx
-        │   ├── PostCard.jsx
-        │   └── CreatePostForm.jsx
-        ├── context/       # AuthContext
-        ├── services/      # api.js, userService.js, postService.js
-        ├── pages/         # Login, Signup, Home, Profile, EditProfile
+        ├── components/       # layout/, PostCard, CreatePostForm, CommentSection, FollowButton, RepoCard, route guards
+        ├── context/          # AuthContext
+        ├── services/         # api and per-feature service modules
+        ├── pages/            # Login, Home, Profile, EditProfile
         ├── App.jsx
         └── main.jsx
 ```
@@ -64,31 +72,55 @@ DevConnect/
 
 ### Prerequisites
 - Node.js
-- A running MongoDB instance (local or Atlas)
+- Docker Desktop (for the local PostgreSQL database)
+- A free [Cloudinary](https://cloudinary.com) account (for image uploads)
+- A running MongoDB instance, only while posts, comments and follows are still being ported
 
-### Backend setup
+### 1. Start the database
+
+From the repo root:
+
+```bash
+docker compose up -d
+```
+
+If port 5432 is already used by a Postgres installed on your machine, change the left side of the port mapping in `docker-compose.yml` to `5433` and use `5433` in `DATABASE_URL` below. The credentials in the compose file are for local development only.
+
+### 2. Backend
 
 ```bash
 cd backend
 npm install
 ```
 
-Create a `.env` file in `backend/`:
+Create `backend/.env`:
 
 ```env
-MONGO_URI=mongodb://localhost:27017/devconnect
+DATABASE_URL=postgresql://devconnect:devconnect_local@localhost:5432/devconnect
+MONGO_URI=mongodb://localhost:27017/devconnect   # temporary, until the port is finished
 JWT_SECRET=your_long_random_secret
 JWT_EXPIRES_IN=7d
 PORT=5500
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+# Optional: raises the GitHub API rate limit from 60 to 5000 requests/hour
+GITHUB_TOKEN=
 ```
 
-Run the server:
+Create the tables, optionally load sample data, and start the server:
 
 ```bash
+npx prisma migrate dev
+node scripts/seed.js      # optional: 8 users with posts, comments and follows
 npm start
 ```
 
-### Frontend setup
+Seeded accounts all use the password `password123` (for example `ada@example.com`). The seed script wipes existing data, so never run it against a database you care about.
+
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -96,19 +128,38 @@ npm install
 npm run dev
 ```
 
-The frontend expects the backend to be running at `http://localhost:5500`, configured in `src/services/api.js`.
+The frontend expects the backend at `http://localhost:5500`, configured in `src/services/api.js`.
 
 ## API Overview
 
-| Method | Endpoint | Auth required | Description |
+| Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/signup` | No | Create an account |
-| POST | `/api/auth/login` | No | Log in, receive a JWT |
-| GET | `/api/auth/me` | Yes | Get the current logged-in user |
-| GET | `/api/users/:username` | No | Get a public profile |
-| PUT | `/api/users/me` | Yes | Update your own profile (bio, avatarUrl, githubUsername) |
-| GET | `/api/posts` | No | Paginated feed of all posts |
-| GET | `/api/posts/user/:username` | No | Paginated posts by a specific user |
-| POST | `/api/posts` | Yes | Create a post |
-| PUT | `/api/posts/:id` | Yes (author only) | Update a post |
-| DELETE | `/api/posts/:id` | Yes (author only) | Delete a post |
+| POST | `/api/auth/login` | No | Log in with email and password, receive a JWT |
+| GET | `/api/auth/me` | Yes | Current logged-in user |
+| GET | `/api/users/:username` | No | Public profile |
+| PUT | `/api/users/me` | Yes | Update bio and GitHub username |
+| POST | `/api/users/me/avatar` | Yes | Upload an avatar (multipart, field `avatar`) |
+| GET | `/api/posts` | No | Paginated feed |
+| GET | `/api/posts/user/:username` | No | Paginated posts by one user |
+| POST | `/api/posts` | Yes | Create a post (multipart: `content`, optional `image`) |
+| PUT | `/api/posts/:id` | Author only | Update a post |
+| DELETE | `/api/posts/:id` | Author only | Delete a post |
+| GET | `/api/comments/post/:postId` | No | Paginated comments on a post |
+| POST | `/api/comments/post/:postId` | Yes | Add a comment |
+| DELETE | `/api/comments/:id` | Author only | Delete a comment |
+| GET | `/api/follows/:username/status` | Optional | Counts, and whether the current user follows them |
+| GET | `/api/follows/:username/followers` | No | A user's followers |
+| GET | `/api/follows/:username/following` | No | Users a user follows |
+| POST | `/api/follows/:username/follow` | Yes | Follow a user |
+| DELETE | `/api/follows/:username/follow` | Yes | Unfollow a user |
+| GET | `/api/github/:githubUsername/repos` | No | Public, non-forked repos sorted by stars |
+
+Email/password signup was removed on the migration branch. New accounts will be created through Google sign-in. Until then, use the seed script for test accounts. The posts, comments and follows endpoints are still being ported to PostgreSQL on that branch.
+
+## Database
+
+PostgreSQL, managed with Prisma migrations (`backend/prisma`). Tables: `users`, `oauth_accounts` (one row per linked provider), `posts`, `comments` and `follows`. Ids are UUIDs, foreign keys cascade on delete, and a database CHECK constraint prevents users from following themselves.
+
+## License
+
+Not yet decided.

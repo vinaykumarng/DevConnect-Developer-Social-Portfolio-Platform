@@ -1,198 +1,250 @@
 import { useEffect, useState } from 'react';
-import {useParams, Link} from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserProfile } from '../services/userService';
 import { fetchUserPosts, deletePost as deletePostApi } from '../services/postService';
-import PostCard from '../components/PostCard';
 import { fetchGithubRepos } from '../services/githubService';
+import { getFollowStatus } from '../services/followService';
+import PostCard from '../components/PostCard';
 import RepoCard from '../components/RepoCard';
 import FollowButton from '../components/FollowButton';
-import { getFollowStatus } from '../services/followService.js';
+import Avatar from '../components/Avatar';
+import Tabs from '../components/Tabs';
+import { GithubIcon } from '../components/Icons';
+import { PostSkeleton } from '../components/Skeletons';
 
-function Avatar({ user }) {
-    if (user.avatarUrl) {
-        return (
-            <img
-                src={user.avatarUrl}
-                alt={user.username}
-                className="w-24 h-24 rounded-full object-cover border-2 border-gray-800"
-            />
-        );
-    }
-    const initial = user.username?.charAt(0).toUpperCase() || '?';
-    return (
-        <div className="w-24 h-24 rounded-full bg-indigo-600 flex items-center justify-center text-3xl font-bold text-white border-2 border-gray-800">
-            {initial}
-        </div>
-    );
+// `key={username}` resets all state when you navigate from one profile to another.
+export default function ProfileRoute() {
+    const { username } = useParams();
+    return <Profile key={username} username={username} />;
 }
 
-export default function Profile() {
-    const { username } = useParams();
-    const { user: currentUser } = useAuth();
+function Profile({ username }) {
+    const { user: currentUser, logout } = useAuth();
+    const navigate = useNavigate();
 
-    const [userPosts, setUserPosts] = useState([]);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [tab, setTab] = useState('posts');
+
+    const [posts, setPosts] = useState([]);
+    const [postsPagination, setPostsPagination] = useState(null);
+    const [postsPage, setPostsPage] = useState(1);
+    const [postsLoading, setPostsLoading] = useState(true);
 
     const [repos, setRepos] = useState([]);
-    const [reposLoading, setReposLoading] = useState(false);
+    const [reposLoading, setReposLoading] = useState(true); // only shown when a GitHub username exists
     const [reposError, setReposError] = useState('');
 
     const [counts, setCounts] = useState({ followersCount: 0, followingCount: 0 });
 
     useEffect(() => {
-        if (!profile) return;
-        getFollowStatus(profile.username).then((res) =>
-            setCounts({ followersCount: res.data.followersCount, followingCount: res.data.followingCount })
-        );
-    }, [profile]);
+        let cancelled = false;
+        fetchUserProfile(username)
+            .then((res) => {
+                if (!cancelled) setProfile(res.data.user);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(err.response?.data?.message || 'Could not load this profile');
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [username]);
 
-    const handleCountChange = (delta) => {
-        setCounts((prev) => ({ ...prev, followersCount: prev.followersCount + delta }));
-    };
+    useEffect(() => {
+        if (!profile) return;
+        let cancelled = false;
+        getFollowStatus(profile.username)
+            .then((res) => {
+                if (!cancelled)
+                    setCounts({ followersCount: res.data.followersCount, followingCount: res.data.followingCount });
+            })
+            .catch(() => {});
+        fetchUserPosts(profile.username, 1)
+            .then((res) => {
+                if (cancelled) return;
+                setPosts(res.data.posts);
+                setPostsPagination(res.data.pagination);
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!cancelled) setPostsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [profile]);
 
     useEffect(() => {
         if (!profile?.githubUsername) return;
-
-        setReposLoading(true);
-        setReposError('');
-
+        let cancelled = false;
         fetchGithubRepos(profile.githubUsername)
-            .then((res) => setRepos(res.data.repos))
-            .catch((err) => setReposError(err.response?.data?.message || 'Could not load repos'))
-            .finally(() => setReposLoading(false));
+            .then((res) => {
+                if (!cancelled) setRepos(res.data.repos);
+            })
+            .catch((err) => {
+                if (!cancelled) setReposError(err.response?.data?.message || 'Could not load repos');
+            })
+            .finally(() => {
+                if (!cancelled) setReposLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [profile?.githubUsername]);
 
-    useEffect(() => {
-        if (!profile) return;
-        fetchUserPosts(profile.username).then((res) => setUserPosts(res.data.posts));
-    }, [profile]);
+    const loadMorePosts = async () => {
+        const next = postsPage + 1;
+        const res = await fetchUserPosts(profile.username, next);
+        setPosts((prev) => [...prev, ...res.data.posts]);
+        setPostsPagination(res.data.pagination);
+        setPostsPage(next);
+    };
 
     const handleDeletePost = async (postId) => {
         if (!confirm('Delete this post?')) return;
         await deletePostApi(postId);
-        setUserPosts((prev) => prev.filter((p) => p._id !== postId));
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
     };
 
-    useEffect(() => {
-        setLoading(true);
-        setError('');
+    const handleCountChange = (delta) =>
+        setCounts((prev) => ({ ...prev, followersCount: prev.followersCount + delta }));
 
-        fetchUserProfile(username)
-            .then((res) => setProfile(res.data.user))
-            .catch((err) => {
-                setError(err.response?.data?.message || 'Could not load this profile');
-            })
-            .finally(() => setLoading(false));
-    }, [username]);
+    if (loading) return <div className="py-20 text-center text-muted">Loading profile...</div>;
+    if (error) return <div className="py-20 text-center text-danger">{error}</div>;
 
-    if (loading) {
-        return <div className="text-center text-gray-400 py-20">Loading profile...</div>;
-    }
-
-    if (error) {
-        return <div className="text-center text-red-400 py-20">{error}</div>;
-    }
-
-    const isOwnProfile = currentUser?.username === profile.username;
+    const isOwnProfile = currentUser?.id === profile.id;
+    const tabs = [
+        { id: 'posts', label: 'Posts' },
+        ...(profile.githubUsername ? [{ id: 'repos', label: 'Repositories' }] : []),
+    ];
 
     return (
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 sm:p-8">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-                    <Avatar user={profile} />
+        <div>
+            <header className="px-4 pb-5 pt-6 sm:px-6">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                    <Avatar user={profile} className="size-28 text-3xl sm:size-36 sm:text-4xl" />
 
-                    <div className="flex-1">
-                        <div className="flex items-center justify-between flex-wrap gap-3">
-                            <div>
-                                <h1 className="text-2xl font-bold text-white">{profile.username}</h1>
-                                <p className="text-sm text-gray-500">
-                                    Joined {new Date(profile.createdAt).toLocaleDateString('en-US', {
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}
-                                </p>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <h1 className="truncate text-2xl font-bold">{profile.username}</h1>
+                                <p className="text-muted">@{profile.username}</p>
                             </div>
+
                             {isOwnProfile ? (
-                                <Link to="/profile/edit" className="text-sm font-medium bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors">
-                                    Edit Profile
-                                </Link>
+                                <div className="flex items-center gap-2">
+                                    <Link
+                                        to="/profile/edit"
+                                        className="rounded-full border border-line px-5 py-2 text-sm font-semibold hover:bg-blush/60"
+                                    >
+                                        Edit profile
+                                    </Link>
+                                    <button
+                                        onClick={() => {
+                                            logout();
+                                            navigate('/');
+                                        }}
+                                        className="rounded-full px-3 py-2 text-sm font-semibold text-danger hover:bg-blush/60"
+                                    >
+                                        Log out
+                                    </button>
+                                </div>
                             ) : (
                                 <FollowButton username={profile.username} onCountChange={handleCountChange} />
                             )}
-
-                            <div className="flex gap-4 text-sm text-gray-400 mt-1">
-                                <span><strong className="text-white">{counts.followersCount}</strong> followers</span>
-                                <span><strong className="text-white">{counts.followingCount}</strong> following</span>
-                            </div>
                         </div>
 
-                        <p className="text-gray-300 mt-3">
-                            {profile.bio || <span className="text-gray-500 italic">No bio yet.</span>}
-                        </p>
-                        {profile.githubUsername && (
-                            <a
-                            href={`https://github.com/${profile.githubUsername}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300 mt-3"
-                            >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.26.82-.577 0-.285-.01-1.04-.015-2.04-3.338.725-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.757-1.333-1.757-1.09-.744.083-.729.083-.729 1.205.084 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.42-1.305.763-1.605-2.665-.303-5.467-1.334-5.467-5.93 0-1.31.468-2.382 1.235-3.222-.123-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23A11.5 11.5 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.24 2.873.117 3.176.77.84 1.233 1.912 1.233 3.222 0 4.61-2.807 5.624-5.48 5.92.43.372.823 1.104.823 2.226 0 1.606-.015 2.902-.015 3.297 0 .32.216.694.825.576C20.565 21.795 24 17.298 24 12c0-6.63-5.37-12-12-12z" />
-                            </svg>
-                            @{profile.githubUsername}
-                            </a>
+                        {profile.bio ? (
+                            <p className="mt-3 whitespace-pre-wrap break-words text-[15px]">{profile.bio}</p>
+                        ) : (
+                            isOwnProfile && <p className="mt-3 text-sm italic text-muted">Add a bio in Edit profile.</p>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+                            {profile.githubUsername && (
+                                <a
+                                    href={`https://github.com/${profile.githubUsername}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-link hover:underline"
+                                >
+                                    <GithubIcon /> {profile.githubUsername}
+                                </a>
                             )}
+                            <span>
+                                Joined{' '}
+                                {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            </span>
+                        </div>
+
+                        <div className="mt-3 flex gap-5 text-sm text-muted">
+                            <span>
+                                <strong className="text-plum">{counts.followersCount}</strong> followers
+                            </span>
+                            <span>
+                                <strong className="text-plum">{counts.followingCount}</strong> following
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            {profile.githubUsername && (
-                <div className="mt-8">
-                    <h2 className="text-lg font-semibold text-white mb-4">Repositories</h2>
+            <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
-                    {reposLoading && <p className="text-gray-500 text-sm">Loading repos...</p>}
-                    {reposError && <p className="text-red-400 text-sm">{reposError}</p>}
-
-                    {!reposLoading && !reposError && repos.length === 0 && (
-                        <p className="text-gray-500 text-sm">No public repositories found.</p>
+            {tab === 'posts' && (
+                <div>
+                    {postsLoading && [0, 1].map((i) => <PostSkeleton key={i} />)}
+                    {posts.map((post) => (
+                        <PostCard key={post.id} post={post} onDelete={handleDeletePost} />
+                    ))}
+                    {!postsLoading && posts.length === 0 && (
+                        <p className="px-6 py-12 text-center text-sm text-muted">No posts yet.</p>
                     )}
+                    {postsPagination?.hasMore && (
+                        <div className="py-6 text-center">
+                            <button
+                                onClick={loadMorePosts}
+                                className="rounded-full border border-line px-5 py-2 text-sm font-semibold hover:bg-blush/60"
+                            >
+                                Load more
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
 
-                    {!reposLoading && repos.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {tab === 'repos' && profile.githubUsername && (
+                <div className="p-4 sm:p-6">
+                    {reposLoading && <p className="text-sm text-muted">Loading repos...</p>}
+                    {reposError && <p className="text-sm text-danger">{reposError}</p>}
+                    {!reposLoading && !reposError && repos.length === 0 && (
+                        <p className="text-sm text-muted">No public repositories found.</p>
+                    )}
+                    {repos.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {repos.slice(0, 6).map((repo) => (
                                 <RepoCard key={repo.id} repo={repo} />
                             ))}
                         </div>
                     )}
-
                     {repos.length > 6 && (
                         <a
-                        href={`https://github.com/${profile.githubUsername}?tab=repositories`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block text-sm text-indigo-400 hover:text-indigo-300 mt-4"
+                            href={`https://github.com/${profile.githubUsername}?tab=repositories`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 inline-block text-sm text-link hover:underline"
                         >
-                        View all {repos.length} repos on GitHub →
+                            View all {repos.length} repos on GitHub →
                         </a>
-                        )}
+                    )}
                 </div>
             )}
-
-            <div className="mt-8">
-                <h2 className="text-lg font-semibold text-white mb-4">Posts</h2>
-                {userPosts.length > 0 ? (
-                    <div className="space-y-4">
-                        {userPosts.map((post) => (
-                            <PostCard key={post._id} post={post} onDelete={handleDeletePost} />
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-gray-500 text-sm">No posts yet.</p>
-                )}
-            </div>
         </div>
     );
 }

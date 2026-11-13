@@ -1,0 +1,109 @@
+// backend/prisma/schema.prisma
+// DevConnect — PostgreSQL schema (Prisma 6, plain JavaScript project)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// No password column: login will go through OAuth (see OAuthAccount).
+// Optional text fields are nullable: NULL means "not set".
+// ---------------------------------------------------------------------------
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  username       String   @unique @db.VarChar(30)
+  email          String   @unique @db.VarChar(255)
+  passwordHash   String?  @map("password_hash") @db.VarChar(255)
+  avatarUrl      String?  @map("avatar_url")
+  bio            String?  @db.VarChar(200)
+  githubUsername String?  @map("github_username") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  oauthAccounts   OAuthAccount[]
+  posts           Post[]
+  comments        Comment[]
+  followsGiven    Follow[]       @relation("Follower")  // rows where this user is the follower
+  followsReceived Follow[]       @relation("Following") // rows where this user is being followed
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// One row per linked login provider (google, github, ...).
+// Lets one user have several providers later without changing the schema.
+// ---------------------------------------------------------------------------
+model OAuthAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  provider       String   @db.VarChar(20)
+  providerUserId String   @map("provider_user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+// ---------------------------------------------------------------------------
+// Posts
+// ---------------------------------------------------------------------------
+model Post {
+  id        String   @id @default(uuid()) @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String   @db.VarChar(1000)
+  imageUrl  String?  @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String   @db.VarChar(300)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@map("comments")
+}
+
+// ---------------------------------------------------------------------------
+// Follows
+// Composite primary key = a user can follow another user only once.
+// The "no self-follow" rule is a CHECK constraint added by hand in the
+// first migration (Prisma's schema language can't express CHECK constraints).
+// ---------------------------------------------------------------------------
+model Follow {
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}

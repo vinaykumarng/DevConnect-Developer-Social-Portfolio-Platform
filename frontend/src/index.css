@@ -1,1 +1,25 @@
 @import 'tailwindcss';
+
+/* Design tokens taken from the Figma screens. Use them as bg-plum, text-muted, border-line, ... */
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --color-page: #faf7f0;      /* page + sidebar background */
+    --color-surface: #fffcf7;   /* cards, centre column */
+    --color-plum: #392137;      /* primary: text, buttons, logo tile */
+    --color-plum-soft: #4d3049; /* primary hover */
+    --color-coral: #cc695a;     /* accent: active tab underline, icons */
+    --color-blush: #f1eae8;     /* active nav pill, disabled button, placeholders */
+    --color-tint: #f5e5de;      /* initials avatar */
+    --color-skeleton: #e5dcd9;
+    --color-line: #e9e2d8;      /* borders and dividers */
+    --color-muted: #71767b;     /* secondary text */
+    --color-link: #1d9bf0;      /* links and focused inputs */
+    --color-danger: #c0392b;
+}
+
+body {
+    background: var(--color-page);
+    color: var(--color-plum);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+}
